@@ -28,6 +28,8 @@ router.get("/", async (req, res) => {
 
 // -----------------------------------------------------------------------------
 // GET /api/races/:id — détails complets (race + grille + participants)
+// Si NumbersRevealed = 0 et que l'utilisateur n'est pas admin, on cache les
+// holders qui ne sont pas l'utilisateur lui-même (feature 1).
 // -----------------------------------------------------------------------------
 router.get("/:id", async (req, res) => {
   try {
@@ -43,11 +45,43 @@ router.get("/:id", async (req, res) => {
       });
     }
 
-    res.json({
-      race: result.recordsets[0][0],
-      grid: result.recordsets[1] || [],
-      participants: result.recordsets[2] || [],
+    const race = result.recordsets[0][0];
+    let grid = result.recordsets[1] || [];
+    let participants = result.recordsets[2] || [];
+
+    // La vue retourne les holders en JSON string — on parse ici
+    grid = grid.map((cell) => {
+      let holders = [];
+      if (cell.HoldersJson) {
+        try {
+          holders = JSON.parse(cell.HoldersJson);
+        } catch {
+          holders = [];
+        }
+      }
+      return { ...cell, Holders: holders, HoldersJson: undefined };
     });
+
+    // Masquage si NumbersRevealed = false et user non admin
+    const shouldHide = !race.NumbersRevealed && !req.user.isAdmin;
+    if (shouldHide) {
+      const myUserId = String(req.user.userId).toLowerCase();
+
+      // Sur la grille : on garde seulement les holders qui sont l'utilisateur courant
+      grid = grid.map((cell) => ({
+        ...cell,
+        Holders: (cell.Holders || []).filter(
+          (h) => String(h.HolderUserId).toLowerCase() === myUserId
+        ),
+      }));
+
+      // Sur la liste participants : on ne garde que ses propres entrées
+      participants = participants.filter(
+        (p) => String(p.UserId).toLowerCase() === myUserId
+      );
+    }
+
+    res.json({ race, grid, participants });
   } catch (err) {
     handleSqlError(err, res);
   }

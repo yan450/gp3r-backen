@@ -110,7 +110,48 @@ router.post("/races/:id/winner", async (req, res) => {
       .input("RaceId", sql.UniqueIdentifier, req.params.id)
       .input("WinningCarNumber", sql.NVarChar(20), String(carNumber))
       .execute("dbo.sp_DeclareWinner");
-    res.json({ winner: result.recordset[0] || null });
+    res.json({ winners: result.recordset });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// POST /api/admin/races/:id/reveal — révéler/cacher les numéros (feature 1)
+router.post("/races/:id/reveal", async (req, res) => {
+  try {
+    const { reveal } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("RaceId", sql.UniqueIdentifier, req.params.id)
+      .input("Reveal", sql.Bit, reveal ? 1 : 0)
+      .execute("dbo.sp_RevealNumbers");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// PATCH /api/admin/cars/:carId/position — mettre à jour position de départ (feature 2)
+router.patch("/cars/:carId/position", async (req, res) => {
+  try {
+    const { startPosition } = req.body || {};
+    const pos =
+      startPosition === null || startPosition === "" || startPosition === undefined
+        ? null
+        : Number(startPosition);
+    if (pos !== null && (isNaN(pos) || pos < 0)) {
+      return res
+        .status(400)
+        .json({ error: { code: "BAD_REQUEST", message: "startPosition invalide." } });
+    }
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("CarId", sql.UniqueIdentifier, req.params.carId)
+      .input("StartPosition", sql.Int, pos)
+      .execute("dbo.sp_UpdateCarPosition");
+    res.json({ ok: true });
   } catch (err) {
     handleSqlError(err, res);
   }
@@ -121,17 +162,22 @@ router.post("/races/:id/winner", async (req, res) => {
 // POST /api/admin/races/:id/cars — ajouter une voiture
 router.post("/races/:id/cars", async (req, res) => {
   try {
-    const { carNumber, driverName } = req.body || {};
+    const { carNumber, driverName, startPosition } = req.body || {};
     if (!carNumber) {
       return res
         .status(400)
         .json({ error: { code: "BAD_REQUEST", message: "carNumber requis." } });
     }
+    const pos =
+      startPosition === null || startPosition === "" || startPosition === undefined
+        ? null
+        : Number(startPosition);
     const pool = await getPool();
     const reqst = pool.request();
     reqst.input("RaceId", sql.UniqueIdentifier, req.params.id);
     reqst.input("CarNumber", sql.NVarChar(20), String(carNumber).trim());
     reqst.input("DriverName", sql.NVarChar(200), driverName || null);
+    reqst.input("StartPosition", sql.Int, pos);
     reqst.output("CarId", sql.UniqueIdentifier);
     const result = await reqst.execute("dbo.sp_AddCar");
     res.status(201).json({ carId: result.output.CarId });
@@ -153,10 +199,10 @@ router.post("/races/:id/cars/bulk", async (req, res) => {
       });
     }
 
-    // Construit le table-valued parameter
     const tvp = new sql.Table("dbo.CarListType");
     tvp.columns.add("CarNumber", sql.NVarChar(20), { nullable: false });
     tvp.columns.add("DriverName", sql.NVarChar(200), { nullable: true });
+    tvp.columns.add("StartPosition", sql.Int, { nullable: true });
 
     const seen = new Set();
     for (const c of cars) {
@@ -164,7 +210,17 @@ router.post("/races/:id/cars/bulk", async (req, res) => {
       const num = String(c.carNumber).trim();
       if (!num || seen.has(num)) continue;
       seen.add(num);
-      tvp.rows.add(num, c.driverName ? String(c.driverName).trim() : null);
+      const pos =
+        c.startPosition === null ||
+        c.startPosition === "" ||
+        c.startPosition === undefined
+          ? null
+          : Number(c.startPosition);
+      tvp.rows.add(
+        num,
+        c.driverName ? String(c.driverName).trim() : null,
+        pos
+      );
     }
 
     if (tvp.rows.length === 0) {
