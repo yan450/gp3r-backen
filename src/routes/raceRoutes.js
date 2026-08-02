@@ -19,6 +19,7 @@ router.get("/", async (req, res) => {
     const result = await pool
       .request()
       .input("IncludeDrafts", sql.Bit, req.user.isAdmin ? 1 : 0)
+      .input("IncludeArchived", sql.Bit, req.user.isAdmin ? 1 : 0)
       .execute("dbo.sp_ListRaces");
     res.json({ races: result.recordset });
   } catch (err) {

@@ -134,6 +134,22 @@ router.post("/races/:id/reveal", async (req, res) => {
   }
 });
 
+// PATCH /api/admin/races/:id/archive — archiver ou désarchiver une course
+router.patch("/races/:id/archive", async (req, res) => {
+  try {
+    const { archived } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("RaceId", sql.UniqueIdentifier, req.params.id)
+      .input("IsArchived", sql.Bit, archived ? 1 : 0)
+      .execute("dbo.sp_SetRaceArchived");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
 // PATCH /api/admin/cars/:carId/position — mettre à jour position de départ (feature 2)
 router.patch("/cars/:carId/position", async (req, res) => {
   try {
