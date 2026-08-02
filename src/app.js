@@ -9,6 +9,7 @@ import authRoutes from "./routes/authRoutes.js";
 import raceRoutes from "./routes/raceRoutes.js";
 import meRoutes from "./routes/meRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/races", raceRoutes);
 app.use("/api/me", meRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // --- 404 ---
 app.use((req, res) => {

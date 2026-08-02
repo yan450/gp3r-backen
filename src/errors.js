@@ -25,10 +25,17 @@ const SQL_ERROR_MAP = {
   50401: { status: 409, code: "RACE_NOT_OPEN" },
   50402: { status: 409, code: "ALREADY_JOINED" },
   50403: { status: 410, code: "NO_NUMBERS" },
+  50410: { status: 403, code: "SUSPENDED" },
 
   // Gagnant
   50500: { status: 404, code: "RACE_NOT_FOUND" },
   50501: { status: 400, code: "INVALID_NUMBER" },
+
+  // Paiements
+  50600: { status: 400, code: "NO_BALANCE" },
+  50601: { status: 403, code: "NOT_ADMIN" },
+  50602: { status: 404, code: "PAYMENT_NOT_FOUND" },
+  50610: { status: 403, code: "NOT_ADMIN" },
 };
 
 export function handleSqlError(err, res) {

@@ -265,7 +265,7 @@ router.get("/users", async (req, res) => {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT UserId, Username, Email, IsAdmin, IsActive, CreatedAt
+      SELECT UserId, Username, Email, IsAdmin, IsActive, IsSuspended, CreatedAt
       FROM dbo.Users
       ORDER BY CreatedAt DESC
     `);
@@ -284,6 +284,77 @@ router.post("/users/:id/promote", async (req, res) => {
       .input("PromoterUserId", sql.UniqueIdentifier, req.user.userId)
       .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
       .execute("dbo.sp_PromoteToAdmin");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// PATCH /api/admin/users/:id/suspend — suspendre ou réactiver un utilisateur
+router.patch("/users/:id/suspend", async (req, res) => {
+  try {
+    const { suspended } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
+      .input("Suspended", sql.Bit, suspended ? 1 : 0)
+      .execute("dbo.sp_SetUserSuspended");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+/* ============================ PAIEMENTS ==================================== */
+
+// GET /api/admin/payments/pending — liste des paiements en attente + soldes
+router.get("/payments/pending", async (req, res) => {
+  try {
+    const pool = await getPool();
+    const result = await pool.request().execute("dbo.sp_GetPendingPayments");
+    // Parse le JSON dans EntriesJson pour chaque payment
+    const pending = (result.recordsets[0] || []).map((p) => ({
+      ...p,
+      Entries: p.EntriesJson ? JSON.parse(p.EntriesJson) : [],
+      EntriesJson: undefined,
+    }));
+    const usersWithBalance = result.recordsets[1] || [];
+    res.json({ pending, usersWithBalance });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// POST /api/admin/payments/:id/confirm — confirmer un paiement
+router.post("/payments/:id/confirm", async (req, res) => {
+  try {
+    const { adminNote } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("PaymentId", sql.UniqueIdentifier, req.params.id)
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("AdminNote", sql.NVarChar(500), adminNote || null)
+      .execute("dbo.sp_ConfirmPayment");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// POST /api/admin/payments/:id/reject — rejeter un paiement (repasse en unpaid)
+router.post("/payments/:id/reject", async (req, res) => {
+  try {
+    const { adminNote } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("PaymentId", sql.UniqueIdentifier, req.params.id)
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("AdminNote", sql.NVarChar(500), adminNote || null)
+      .execute("dbo.sp_RejectPayment");
     res.json({ ok: true });
   } catch (err) {
     handleSqlError(err, res);
