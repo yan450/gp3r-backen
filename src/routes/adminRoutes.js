@@ -4,7 +4,7 @@
 
 import { Router } from "express";
 import { sql, getPool } from "../db.js";
-import { authMiddleware, adminMiddleware } from "../auth.js";
+import { authMiddleware, adminMiddleware, hashPassword } from "../auth.js";
 import { handleSqlError } from "../errors.js";
 
 const router = Router();
@@ -301,6 +301,91 @@ router.patch("/users/:id/suspend", async (req, res) => {
       .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
       .input("Suspended", sql.Bit, suspended ? 1 : 0)
       .execute("dbo.sp_SetUserSuspended");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// GET /api/admin/users/:id — fiche complète d'un utilisateur
+router.get("/users/:id", async (req, res) => {
+  try {
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
+      .execute("dbo.sp_GetUserDetails");
+
+    const user = result.recordsets[0]?.[0];
+    if (!user) {
+      return res.status(404).json({
+        error: { code: "USER_NOT_FOUND", message: "Utilisateur introuvable." },
+      });
+    }
+    res.json({
+      user,
+      entries: result.recordsets[1] || [],
+      payments: result.recordsets[2] || [],
+      stats: result.recordsets[3]?.[0] || null,
+    });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// POST /api/admin/users/:id/reset-password — réinitialiser le mot de passe
+router.post("/users/:id/reset-password", async (req, res) => {
+  try {
+    const { newPassword } = req.body || {};
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({
+        error: {
+          code: "BAD_REQUEST",
+          message: "Le nouveau mot de passe doit faire au moins 6 caractères.",
+        },
+      });
+    }
+    const passwordHash = await hashPassword(newPassword);
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
+      .input("NewPasswordHash", sql.NVarChar(255), passwordHash)
+      .execute("dbo.sp_AdminResetPassword");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// PATCH /api/admin/users/:id/active — activer ou désactiver un compte
+router.patch("/users/:id/active", async (req, res) => {
+  try {
+    const { isActive } = req.body || {};
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
+      .input("IsActive", sql.Bit, isActive ? 1 : 0)
+      .execute("dbo.sp_SetUserActive");
+    res.json({ ok: true });
+  } catch (err) {
+    handleSqlError(err, res);
+  }
+});
+
+// DELETE /api/admin/users/:id — suppression définitive
+router.delete("/users/:id", async (req, res) => {
+  try {
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("AdminUserId", sql.UniqueIdentifier, req.user.userId)
+      .input("TargetUserId", sql.UniqueIdentifier, req.params.id)
+      .execute("dbo.sp_DeleteUser");
     res.json({ ok: true });
   } catch (err) {
     handleSqlError(err, res);

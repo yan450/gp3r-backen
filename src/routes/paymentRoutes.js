@@ -26,8 +26,9 @@ router.get("/cart", async (req, res) => {
     const history = result.recordsets[2] || [];
 
     // Adresse Interac configurée côté serveur (variable d'environnement)
-    const interacEmail = process.env.INTERAC_EMAIL || "";
-    const interacName = process.env.INTERAC_NAME || "";
+    // Valeur par défaut si la variable n'est pas définie
+    const interacEmail = process.env.INTERAC_EMAIL || "yanfrenette@gmail.com";
+    const interacName = process.env.INTERAC_NAME || "Yan Frenette";
     const interacPassword = process.env.INTERAC_PASSWORD || "";
 
     res.json({

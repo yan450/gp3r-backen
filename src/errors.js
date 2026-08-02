@@ -36,6 +36,16 @@ const SQL_ERROR_MAP = {
   50601: { status: 403, code: "NOT_ADMIN" },
   50602: { status: 404, code: "PAYMENT_NOT_FOUND" },
   50610: { status: 403, code: "NOT_ADMIN" },
+
+  // Gestion utilisateurs
+  50700: { status: 403, code: "NOT_ADMIN" },
+  50701: { status: 404, code: "USER_NOT_FOUND" },
+  50710: { status: 403, code: "NOT_ADMIN" },
+  50711: { status: 409, code: "CANNOT_SELF_DEACTIVATE" },
+  50720: { status: 403, code: "NOT_ADMIN" },
+  50721: { status: 409, code: "CANNOT_SELF_DELETE" },
+  50722: { status: 404, code: "USER_NOT_FOUND" },
+  50730: { status: 403, code: "NOT_ADMIN" },
 };
 
 export function handleSqlError(err, res) {
