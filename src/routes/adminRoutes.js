@@ -15,7 +15,7 @@ router.use(authMiddleware, adminMiddleware);
 // POST /api/admin/races — créer
 router.post("/races", async (req, res) => {
   try {
-    const { name, description, raceDate, entryFee } = req.body || {};
+    const { name, description, raceDate, entryFee, displayOrder } = req.body || {};
     if (!name || typeof name !== "string") {
       return res
         .status(400)
@@ -28,6 +28,7 @@ router.post("/races", async (req, res) => {
     reqst.input("Description", sql.NVarChar(sql.MAX), description || null);
     reqst.input("RaceDate", sql.Date, raceDate || null);
     reqst.input("EntryFee", sql.Decimal(10, 2), Number(entryFee) || 0);
+    reqst.input("DisplayOrder", sql.Int, Number(displayOrder) || 0);
     reqst.output("RaceId", sql.UniqueIdentifier);
     const result = await reqst.execute("dbo.sp_CreateRace");
     res.status(201).json({ raceId: result.output.RaceId });
@@ -39,7 +40,7 @@ router.post("/races", async (req, res) => {
 // PUT /api/admin/races/:id — mettre à jour
 router.put("/races/:id", async (req, res) => {
   try {
-    const { name, description, raceDate, entryFee } = req.body || {};
+    const { name, description, raceDate, entryFee, displayOrder } = req.body || {};
     if (!name) {
       return res
         .status(400)
@@ -53,6 +54,7 @@ router.put("/races/:id", async (req, res) => {
       .input("Description", sql.NVarChar(sql.MAX), description || null)
       .input("RaceDate", sql.Date, raceDate || null)
       .input("EntryFee", sql.Decimal(10, 2), Number(entryFee) || 0)
+      .input("DisplayOrder", sql.Int, Number(displayOrder) || 0)
       .execute("dbo.sp_UpdateRace");
     res.json({ ok: true });
   } catch (err) {
